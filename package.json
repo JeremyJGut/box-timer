@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "test": "echo \"No tests yet (M4)\"",
+    "test": "vitest run",
     "deploy": "npm run build && firebase deploy --only hosting,firestore:rules",
     "dev:emu": "vite --mode emulator",
     "emulators": "firebase emulators:start --only auth,firestore",
@@ -15,11 +15,13 @@
   },
   "dependencies": {
     "firebase": "^13.1.0",
+    "nosleep.js": "^0.12.0",
     "qrcode": "^1.5.4"
   },
   "devDependencies": {
     "@types/qrcode": "^1.5.6",
     "typescript": "~6.0.3",
-    "vite": "^8.3.4"
+    "vite": "^8.3.4",
+    "vitest": "^5.0.5"
   }
 }
