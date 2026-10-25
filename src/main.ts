@@ -8,6 +8,9 @@ import { el } from "./dom.ts";
 import { mountCoach } from "./coach.ts";
 import { mountTimer } from "./timer/mount.ts";
 
+const DEMO_URL = "/t/jCk30lmNpCp2AQTM7wF1";
+const demoLink = () => el("a", { className: "btn-secondary", text: "Try a demo timer", attrs: { href: DEMO_URL } });
+
 const root = document.querySelector<HTMLDivElement>("#app");
 if (!root) throw new Error("#app not found");
 const app: HTMLDivElement = root;
@@ -55,7 +58,7 @@ function showSignedOut(): void {
         el("p", { className: "eyebrow", text: "For Time · AMRAP · EMOM" }),
         el("h1", { className: "hero-title", text: "Box Timer" }),
         el("p", { className: "hero-lead", text: "Set up today's workout, run it on the phone by the rig." }),
-        button,
+        el("div", { className: "row" }, button, demoLink()),
         error,
         el("p", { className: "muted small", text: `Coaches sign in with their @${ALLOWED_DOMAIN} Google account.` }),
       ),
@@ -100,6 +103,7 @@ function showRefused(user: User): void {
     el("div", { className: "row" },
       el("button", { className: "primary", text: "Sign out", onClick: () => void signOutUser() }),
       probe,
+      demoLink(),
     ),
     result,
   );

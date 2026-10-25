@@ -298,3 +298,12 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 .saved-lead { font-size: 1.15rem; margin: 0 0 0.5rem; }
 .coach-body .link { color: var(--c-yellow); font-size: 1rem; }
 .coach-body .saved .row { justify-content: center; }
+
+
+/* Secondary link styled as a button (coach pages) */
+.coach-body .btn-secondary {
+  display: inline-block; padding: 0.55rem 1rem; border: 1px solid #555; border-radius: 10px;
+  color: var(--c-text); font-weight: 600; text-decoration: none;
+}
+.coach-body .btn-secondary:hover { border-color: var(--c-text); }
+.coach-body .hero .btn-secondary { font-size: 1.25rem; padding: 1rem 1.5rem; border-radius: 14px; }
