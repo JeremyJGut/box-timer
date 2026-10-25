@@ -6,7 +6,7 @@ import {
   createWorkout, deleteWorkout, listMine, phoneUrl, updateWorkout, type SavedWorkout,
 } from "./store.ts";
 import {
-  COUNTDOWN_OPTIONS, LIMITS, MODE_LABEL, defaultFormValues, describe, describeCountdown,
+  COUNTDOWN_OPTIONS, LIMITS, MODE_LABEL, defaultFormValues, describe, describeCountdown, formatClock, totalSec,
   toFormValues, validateForm, type FieldName, type FormValues, type Mode,
 } from "./workout.ts";
 
@@ -50,10 +50,14 @@ export function mountCoach(user: User, render: Render): void {
       await deleteWorkout(s.id);
       await showList();
     });
-    return el("li", { className: "card" },
-      el("div", {},
-        el("strong", { text: s.workout.name }),
-        el("div", { className: "muted small", text: `${describe(s.workout)} · ${describeCountdown(s.workout.countdownSec)}` }),
+    return el("li", { className: `card mode-${s.workout.mode}` },
+      el("div", { className: "card-main" },
+        el("span", { className: "badge", text: MODE_LABEL[s.workout.mode] }),
+        el("span", { className: "card-clock", text: formatClock(totalSec(s.workout)) }),
+        el("div", { className: "card-text" },
+          el("strong", { className: "card-name", text: s.workout.name }),
+          el("div", { className: "muted small", text: `${describe(s.workout)} · ${describeCountdown(s.workout.countdownSec)}` }),
+        ),
       ),
       el("div", { className: "row" },
         el("button", { className: "primary", text: "Open on phone", onClick: () => void showSaved(s) }),
@@ -221,9 +225,9 @@ export function mountCoach(user: User, render: Render): void {
       header(s.workout.name),
       el("p", { className: "summary", text: `${describe(s.workout)} · ${describeCountdown(s.workout.countdownSec)}` }),
       el("div", { className: "saved" },
-        qr,
-        el("div", {},
-          el("p", { text: "Scan with the phone by the rig. No login needed." }),
+        el("div", { className: "qr-frame" }, qr),
+        el("div", { className: "saved-text" },
+          el("p", { className: "saved-lead", text: "Scan with the phone by the rig. No login needed." }),
           el("p", {}, el("a", { className: "link", text: url, attrs: { href: url, target: "_blank", rel: "noopener" } })),
           el("div", { className: "row" },
             copyBtn,

@@ -175,3 +175,126 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 @media (prefers-reduced-motion: reduce) {
   .run, .ring-bar { transition: none; }
 }
+
+/* ================================================================
+   Coach pages: dark, matching the phone timer (scoped to .coach-body,
+   so the timer screen is unaffected).
+   ================================================================ */
+.coach-body {
+  --c-bg: #111;
+  --c-panel: #1b1b1b;
+  --c-line: #333;
+  --c-text: #f5f5f5;
+  --c-muted: #a3a3a3;      /* 8:1 on #111 */
+  --c-yellow: #facc15;
+  --c-red: #ef4444;        /* 4.9:1 on #111, used for large text / borders */
+  --c-red-bg: #b91c1c;     /* white on it: 6.5:1 */
+  --c-green: #22c55e;
+  --c-green-bg: #15803d;
+  --display: "Roboto Condensed", "Arial Narrow", "Helvetica Neue", system-ui, sans-serif;
+  background: var(--c-bg);
+  color: var(--c-text);
+}
+.coach-body .muted { color: var(--c-muted); }
+.coach-body h1 {
+  font-family: var(--display); font-stretch: condensed; font-weight: 800;
+  text-transform: uppercase; letter-spacing: 0.01em;
+  font-size: clamp(2rem, 5vw, 3rem); line-height: 1.05;
+}
+.coach-body header { padding-bottom: 1rem; border-bottom: 1px solid var(--c-line); margin-bottom: 1.5rem; }
+.coach-body :focus-visible { outline: 3px solid var(--c-yellow); outline-offset: 3px; }
+
+/* Buttons */
+.coach-body button {
+  background: transparent; color: var(--c-text); border: 1px solid #555; border-radius: 10px;
+}
+.coach-body button:hover:not(:disabled) { border-color: var(--c-text); }
+.coach-body button.primary {
+  background: var(--c-yellow); color: #111; border-color: var(--c-yellow); font-weight: 800;
+}
+.coach-body button.primary:hover:not(:disabled) { background: #fde047; border-color: #fde047; }
+.coach-body button.danger { color: #fca5a5; border-color: #7f1d1d; }
+.coach-body .error, .coach-body .field-error { color: #f87171; }   /* 6.3:1 */
+.coach-body .probe.ok { color: #4ade80; }
+.coach-body .probe.bad { color: #f87171; }
+
+/* Eyebrow labels */
+.coach-body .eyebrow {
+  margin: 0 0 0.4rem; font-weight: 800; font-size: 0.85rem;
+  text-transform: uppercase; letter-spacing: 0.12em; color: var(--c-yellow);
+}
+.coach-body .eyebrow-bad { color: #f87171; }
+
+/* Sign-in hero */
+.hero {
+  min-height: calc(100dvh - 6rem);
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 3rem; align-items: center;
+}
+@media (max-width: 760px) { .hero { grid-template-columns: 1fr; gap: 2rem; } }
+.hero-title { font-size: clamp(3rem, 9vw, 6rem) !important; margin-bottom: 0.75rem !important; }
+.hero-lead { font-size: clamp(1.15rem, 2.2vw, 1.5rem); margin: 0 0 1.75rem; max-width: 26ch; }
+.hero .primary { font-size: 1.25rem; padding: 1rem 1.75rem; border-radius: 14px; }
+.hero-visual {
+  background: var(--c-red-bg); color: #fff; border-radius: 28px;
+  padding: 2rem 1.5rem; text-align: center;
+  box-shadow: inset 0 0 0 8px rgba(255, 255, 255, 0.9), inset 0 0 0 16px var(--c-red-bg);
+}
+.hero-phase {
+  margin: 0; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase;
+  font-size: clamp(1rem, 2vw, 1.4rem);
+}
+.hero-clock {
+  margin: 0; font-family: var(--display); font-stretch: condensed; font-weight: 800;
+  font-variant-numeric: tabular-nums; line-height: 1; font-size: clamp(5rem, 13vw, 10rem);
+}
+
+/* Workout list */
+.coach-body .list { gap: 0.6rem; }
+.coach-body .card {
+  background: var(--c-panel); border: 1px solid var(--c-line); border-left: 6px solid var(--accent-c, #555);
+  border-radius: 12px; padding: 0.9rem 1rem;
+}
+.card-main { display: flex; align-items: center; gap: 1rem; min-width: 0; flex: 1 1 22rem; }
+.card-text { min-width: 0; }
+.card-name { font-size: 1.15rem; display: block; overflow-wrap: anywhere; }
+.badge {
+  flex: none; padding: 0.2rem 0.55rem; border-radius: 6px; font-weight: 800; font-size: 0.8rem;
+  text-transform: uppercase; letter-spacing: 0.06em;
+  background: var(--accent-c, #555); color: var(--accent-ink, #fff); min-width: 5.5rem; text-align: center;
+}
+.card-clock {
+  flex: none; font-family: var(--display); font-stretch: condensed; font-weight: 800;
+  font-variant-numeric: tabular-nums; font-size: 2rem; line-height: 1; min-width: 4.5ch; text-align: right;
+}
+.mode-fortime { --accent-c: var(--c-red-bg); --accent-ink: #fff; }
+.mode-amrap   { --accent-c: var(--c-yellow); --accent-ink: #111; }
+.mode-emom    { --accent-c: var(--c-green-bg); --accent-ink: #fff; }
+.mode-fortime .card-clock { color: var(--c-red); }
+.mode-amrap .card-clock { color: var(--c-yellow); }
+.mode-emom .card-clock { color: var(--c-green); }
+
+/* Form */
+.coach-body .field input, .coach-body .field select, .coach-body .field textarea {
+  background: var(--c-panel); color: var(--c-text); border: 1px solid #444; border-radius: 10px;
+}
+.coach-body .field input::placeholder { color: #777; }
+.coach-body .field input[aria-invalid="true"], .coach-body .field textarea[aria-invalid="true"] { border-color: #f87171; }
+.coach-body .hint { color: var(--c-muted); }
+.coach-body .segmented { border: 1px solid #555; border-radius: 12px; }
+.coach-body .seg { background: transparent; color: var(--c-text); border-radius: 0; padding: 0.9rem 1.5rem; font-weight: 800; }
+.coach-body .seg + .seg { border-left: 1px solid #555; }
+.coach-body .seg.on[data-mode="fortime"] { background: var(--c-red-bg); color: #fff; }
+.coach-body .seg.on[data-mode="amrap"]   { background: var(--c-yellow); color: #111; }
+.coach-body .seg.on[data-mode="emom"]    { background: var(--c-green-bg); color: #fff; }
+.coach-body .side { background: var(--c-panel); border: 1px solid var(--c-line); border-radius: 12px; }
+.coach-body .side .label { color: var(--c-yellow); text-transform: uppercase; letter-spacing: 0.1em; font-size: 0.8rem; }
+.coach-body .summary { font-family: var(--display); font-stretch: condensed; font-size: 1.6rem; line-height: 1.2; }
+
+/* QR page */
+.coach-body .saved { flex-direction: column; align-items: center; text-align: center; gap: 1.5rem; }
+.qr-frame { background: #fff; padding: 1rem; border-radius: 18px; }
+.coach-body .qr { width: min(380px, 80vw); border: 0; border-radius: 0; display: block; }
+.saved-text { display: flex; flex-direction: column; align-items: center; }
+.saved-lead { font-size: 1.15rem; margin: 0 0 0.5rem; }
+.coach-body .link { color: var(--c-yellow); font-size: 1rem; }
+.coach-body .saved .row { justify-content: center; }

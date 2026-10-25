@@ -50,10 +50,20 @@ function showSignedOut(): void {
     },
   });
   render(
-    el("h1", { text: "Box Timer" }),
-    el("p", { text: `Coaches sign in with their @${ALLOWED_DOMAIN} Google account.` }),
-    button,
-    error,
+    el("section", { className: "hero" },
+      el("div", { className: "hero-text" },
+        el("p", { className: "eyebrow", text: "For Time · AMRAP · EMOM" }),
+        el("h1", { className: "hero-title", text: "Box Timer" }),
+        el("p", { className: "hero-lead", text: "Set up today's workout, run it on the phone by the rig." }),
+        button,
+        error,
+        el("p", { className: "muted small", text: `Coaches sign in with their @${ALLOWED_DOMAIN} Google account.` }),
+      ),
+      el("div", { className: "hero-visual", attrs: { "aria-hidden": "true" } },
+        el("p", { className: "hero-phase", text: "AMRAP" }),
+        el("p", { className: "hero-clock", text: "12:00" }),
+      ),
+    ),
   );
 }
 
@@ -83,6 +93,7 @@ function showRefused(user: User): void {
     ? `Only @${ALLOWED_DOMAIN} accounts can set up workouts.`
     : "This Google account's email is not verified.";
   render(
+    el("p", { className: "eyebrow eyebrow-bad", text: "Box Timer" }),
     el("h1", { text: "Access denied" }),
     el("p", { className: "error", text: `${user.email ?? "This account"} can't use Box Timer. ${reason}` }),
     el("p", { text: `Sign out and use your @${ALLOWED_DOMAIN} account.` }),
