@@ -14,9 +14,11 @@
     "test:rules": "firebase emulators:exec --only auth,firestore \"node scripts/rules-test.mjs\""
   },
   "dependencies": {
-    "firebase": "^13.1.0"
+    "firebase": "^13.1.0",
+    "qrcode": "^1.5.4"
   },
   "devDependencies": {
+    "@types/qrcode": "^1.5.6",
     "typescript": "~6.0.3",
     "vite": "^8.3.4"
   }

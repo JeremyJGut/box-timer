@@ -1,32 +1,16 @@
 import "./style.css";
 import type { User } from "firebase/auth";
 import {
-  isCoach,
-  probeServerWrite,
-  signInWithGoogle,
-  signOutUser,
-  watchUser,
-  ALLOWED_DOMAIN,
+  isCoach, probeServerWrite, signInWithGoogle, signOutUser, watchUser, ALLOWED_DOMAIN,
 } from "./auth.ts";
 import { usingEmulators } from "./firebase.ts";
+import { el } from "./dom.ts";
+import { mountCoach } from "./coach.ts";
+import { mountTimer } from "./timer/mount.ts";
 
 const root = document.querySelector<HTMLDivElement>("#app");
 if (!root) throw new Error("#app not found");
 const app: HTMLDivElement = root;
-
-/** Tiny DOM helper: text goes through textContent, never innerHTML. */
-function el<K extends keyof HTMLElementTagNameMap>(
-  tag: K,
-  props: { className?: string; text?: string; onClick?: () => void } = {},
-  ...children: Node[]
-): HTMLElementTagNameMap[K] {
-  const node = document.createElement(tag);
-  if (props.className) node.className = props.className;
-  if (props.text !== undefined) node.textContent = props.text;
-  if (props.onClick) node.addEventListener("click", props.onClick);
-  node.append(...children);
-  return node;
-}
 
 function render(...children: Node[]): void {
   const banner = usingEmulators
@@ -35,24 +19,26 @@ function render(...children: Node[]): void {
   app.replaceChildren(...banner, el("main", { className: "page" }, ...children));
 }
 
-// ---------- Phone route (/t/<id>): no login. Built in M5. ----------
+// ---------- Routing ----------
 const timerMatch = location.pathname.match(/^\/t\/([A-Za-z0-9]+)\/?$/);
-if (timerMatch) {
-  document.body.classList.add("timer-body");
-  render(el("h1", { text: "Timer" }), el("p", { text: `Workout ${timerMatch[1]} (timer comes in M5).` }));
+if (timerMatch?.[1]) {
+  void mountTimer(app, timerMatch[1]);
 } else {
   document.body.classList.add("coach-body");
   render(el("p", { className: "muted", text: "Loading…" }));
+  let current: string | null = null;
   watchUser((user) => {
+    const key = user ? user.uid : "";
+    if (key === current) return; // ignore token refreshes for the same user
+    current = key;
     if (!user) showSignedOut();
-    else if (isCoach(user)) showCoach(user);
+    else if (isCoach(user)) mountCoach(user, render);
     else showRefused(user);
   });
 }
 
-function showSignedOut(message: string | null = null): void {
-  const error = el("p", { className: "error", text: message ?? "" });
-  error.setAttribute("role", "alert");
+function showSignedOut(): void {
+  const error = el("p", { className: "error", attrs: { role: "alert" } });
   const button = el("button", {
     className: "primary",
     text: "Sign in with Google",
@@ -72,8 +58,7 @@ function showSignedOut(message: string | null = null): void {
 }
 
 function showRefused(user: User): void {
-  const result = el("p", { className: "probe" });
-  result.setAttribute("aria-live", "polite");
+  const result = el("p", { className: "probe", attrs: { "aria-live": "polite" } });
   const probe = el("button", {
     text: "Verify server-side block",
     onClick: async () => {
@@ -106,16 +91,5 @@ function showRefused(user: User): void {
       probe,
     ),
     result,
-  );
-}
-
-function showCoach(user: User): void {
-  render(
-    el("div", { className: "row spread" },
-      el("h1", { text: "My workouts" }),
-      el("button", { text: "Sign out", onClick: () => void signOutUser() }),
-    ),
-    el("p", { className: "muted", text: `Signed in as ${user.email ?? ""}` }),
-    el("p", { text: "Workout list and form come in M3." }),
   );
 }
