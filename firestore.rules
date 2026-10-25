@@ -1,8 +1,70 @@
 rules_version = '2';
 
-// M1: deny everything. M2 replaces this with the @yaqbot.com rules.
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    // Real lock for R4: verified Google account whose email ends in @yaqbot.com.
+    function isCoach() {
+      return request.auth != null
+        && request.auth.token.email_verified == true
+        && request.auth.token.email.lower().matches('.*@yaqbot[.]com$');
+    }
+
+    function myEmail() {
+      return request.auth.token.email.lower();
+    }
+
+    function intIn(v, lo, hi) {
+      return v is int && v >= lo && v <= hi;
+    }
+
+    function validModeFields(d) {
+      return (d.mode == 'fortime'
+                && intIn(d.get('capSec', -1), 60, 3600)
+                && !d.keys().hasAny(['durationSec', 'intervalSec', 'rounds']))
+          || (d.mode == 'amrap'
+                && intIn(d.get('durationSec', -1), 60, 3600)
+                && !d.keys().hasAny(['capSec', 'intervalSec', 'rounds']))
+          || (d.mode == 'emom'
+                && intIn(d.get('intervalSec', -1), 30, 300)
+                && intIn(d.get('rounds', -1), 1, 60)
+                && !d.keys().hasAny(['capSec', 'durationSec']));
+    }
+
+    function validWorkout(d) {
+      return d.keys().hasAll(['name', 'mode', 'countdownSec', 'notes', 'ownerEmail', 'createdAt', 'updatedAt'])
+        && d.keys().hasOnly(['name', 'mode', 'capSec', 'durationSec', 'intervalSec', 'rounds',
+                             'countdownSec', 'notes', 'ownerEmail', 'createdAt', 'updatedAt'])
+        && d.name is string && d.name.trim().size() >= 1 && d.name.size() <= 60
+        && d.notes is string && d.notes.size() <= 240
+        && d.countdownSec in [0, 5, 10, 15]
+        && d.createdAt is timestamp
+        && d.updatedAt == request.time
+        && validModeFields(d);
+    }
+
+    match /workouts/{workoutId} {
+      // The phone has no login: anyone holding the random ID can read that one doc.
+      allow get: if true;
+
+      // Listing: coaches only, and only their own workouts.
+      allow list: if isCoach() && resource.data.ownerEmail == myEmail();
+
+      allow create: if isCoach()
+        && validWorkout(request.resource.data)
+        && request.resource.data.ownerEmail == myEmail()
+        && request.resource.data.createdAt == request.time;
+
+      allow update: if isCoach()
+        && resource.data.ownerEmail == myEmail()
+        && validWorkout(request.resource.data)
+        && request.resource.data.ownerEmail == resource.data.ownerEmail
+        && request.resource.data.createdAt == resource.data.createdAt;
+
+      allow delete: if isCoach() && resource.data.ownerEmail == myEmail();
+    }
+
+    // Everything else stays closed.
     match /{document=**} {
       allow read, write: if false;
     }

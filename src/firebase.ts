@@ -1,5 +1,6 @@
 import { initializeApp } from "firebase/app";
-import { getFirestore } from "firebase/firestore";
+import { connectAuthEmulator, getAuth } from "firebase/auth";
+import { connectFirestoreEmulator, getFirestore } from "firebase/firestore";
 
 // Firebase web config is public by design; access is controlled by firestore.rules.
 const firebaseConfig = {
@@ -12,4 +13,16 @@ const firebaseConfig = {
 };
 
 export const app = initializeApp(firebaseConfig);
+export const auth = getAuth(app);
 export const db = getFirestore(app);
+
+// Local emulators, only for `npm run dev:emu`.
+// `vite build` replaces import.meta.env.DEV with false, so this whole branch
+// is removed from the production bundle and cannot ship by accident.
+export const usingEmulators =
+  import.meta.env.DEV && import.meta.env.MODE === "emulator";
+
+if (usingEmulators) {
+  connectAuthEmulator(auth, "http://127.0.0.1:9099", { disableWarnings: true });
+  connectFirestoreEmulator(db, "127.0.0.1", 8080);
+}

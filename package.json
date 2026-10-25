@@ -8,7 +8,10 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "test": "echo \"No tests yet (M4)\"",
-    "deploy": "npm run build && firebase deploy --only hosting,firestore:rules"
+    "deploy": "npm run build && firebase deploy --only hosting,firestore:rules",
+    "dev:emu": "vite --mode emulator",
+    "emulators": "firebase emulators:start --only auth,firestore",
+    "test:rules": "firebase emulators:exec --only auth,firestore \"node scripts/rules-test.mjs\""
   },
   "dependencies": {
     "firebase": "^13.1.0"
