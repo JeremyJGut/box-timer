@@ -1,5 +1,5 @@
 import { describe as group, expect, it } from "vitest";
-import { dueCues, finish, pause, resume, snapshot, start, type Cue } from "./engine.ts";
+import { dueCues, finish, pause, resume, skip, snapshot, start, type Cue } from "./engine.ts";
 import type { Workout } from "../workout.ts";
 
 const amrap: Workout = { name: "A", notes: "", countdownSec: 10, mode: "amrap", durationSec: 60 };
@@ -125,5 +125,103 @@ group("beeps", () => {
     const a = snapshot(amrap, run, at(6.5)).t;
     const b = snapshot(amrap, run, at(30)).t;
     expect(dueCues(amrap, a, b)).toEqual([]);
+  });
+});
+
+// ---------- M5.5: progress, stats, next, skip, finish ----------
+
+/** Frame loop that can apply skip() at given timeline seconds (wall-clock based). */
+function runWithSkips(w: Workout, skipAtWallSec: number[], untilWallSec: number): Cue[] {
+  const fired: Cue[] = [];
+  let run = start(T0);
+  let lastT = -1;
+  const pending = [...skipAtWallSec];
+  for (let now = T0; now <= at(untilWallSec); now += 100) {
+    if (pending.length && now >= at(pending[0]!)) {
+      pending.shift();
+      const r = skip(w, run, now);
+      if (r) { run = r.run; lastT = Math.max(lastT, r.cursor); }
+    }
+    const snap = snapshot(w, run, now);
+    if (snap.phase === "done" && fired.some((c) => c.kind === "end")) break;
+    fired.push(...dueCues(w, lastT, snap.t));
+    lastT = snap.t;
+  }
+  return fired;
+}
+
+group("progress, stats and next", () => {
+  it("ring depletes through the countdown and each EMOM round; full when done", () => {
+    const run = start(T0);
+    expect(snapshot(amrap, run, at(5)).progress).toBeCloseTo(0.5);
+    expect(snapshot(emom, run, at(90)).progress).toBeCloseTo(0.5);
+    expect(snapshot(amrap, run, at(70)).progress).toBe(1);
+  });
+  it("elapsed and time left cover the whole workout", () => {
+    const run = start(T0);
+    expect(snapshot(amrap, run, at(3))).toMatchObject({ elapsedSec: 0, leftSec: 60 });
+    expect(snapshot(amrap, run, at(25.5))).toMatchObject({ elapsedSec: 15, leftSec: 45 });
+    expect(snapshot(emom, run, at(130))).toMatchObject({ elapsedSec: 130, leftSec: 50 });
+    expect(snapshot(amrap, run, at(70))).toMatchObject({ leftSec: 0 });
+  });
+  it("next up: work / round n / finish", () => {
+    const run = start(T0);
+    expect(snapshot(amrap, run, at(1)).next).toEqual({ kind: "work" });
+    expect(snapshot(amrap, run, at(20)).next).toEqual({ kind: "finish" });
+    expect(snapshot(emom, run, at(10)).next).toEqual({ kind: "round", round: 2 });
+    expect(snapshot(emom, run, at(150)).next).toEqual({ kind: "finish" });
+    expect(snapshot(emom, run, at(200)).next).toBeNull();
+  });
+});
+
+group("skip", () => {
+  it("skips the countdown straight to work", () => {
+    const r = skip(amrap, start(T0), at(2));
+    expect(r).not.toBeNull();
+    expect(snapshot(amrap, r!.run, at(2))).toMatchObject({ phase: "work", displaySec: 60 });
+  });
+  it("countdown skip plays GO once, never the skipped 3-2-1, then continues normally", () => {
+    // Skip at 2 s (wall): timeline jumps 8 s ahead, so the end is at wall 62 s.
+    expect(summary(runWithSkips(amrap, [2], 80))).toEqual(
+      ["go@10", "short@67", "short@68", "short@69", "end@70"],
+    );
+  });
+  it("EMOM skip jumps to the next round with one new-round beep", () => {
+    const r = skip(emom, start(T0), at(20))!;
+    expect(snapshot(emom, r.run, at(20))).toMatchObject({ round: 2, displaySec: 60 });
+    expect(summary(runWithSkips(emom, [20], 200))).toEqual([
+      "go@0", "go@60",
+      "short@117", "short@118", "short@119", "go@120",
+      "short@177", "short@178", "short@179", "end@180",
+    ]);
+  });
+  it("skipping the last EMOM round ends the workout with one end signal", () => {
+    expect(summary(runWithSkips(emom, [130], 200)).slice(-1)).toEqual(["end@180"]);
+    const cues = runWithSkips(emom, [130], 200);
+    expect(cues.filter((c) => c.kind === "end")).toHaveLength(1);
+  });
+  it("two quick skips never replay a beep", () => {
+    const cues = runWithSkips(emom, [5, 5.1, 5.2], 200);
+    const times = cues.map((c) => c.at);
+    expect(new Set(times).size).toBe(times.length);
+  });
+  it("nothing to skip during AMRAP / For Time work or when done", () => {
+    expect(skip(amrap, start(T0), at(20))).toBeNull();
+    expect(skip(forTime, start(T0), at(20))).toBeNull();
+    expect(skip(amrap, finish(start(T0), at(20)), at(30))).toBeNull();
+  });
+  it("skip while paused stays paused at the boundary", () => {
+    const r = skip(amrap, pause(start(T0), at(4)), at(6))!;
+    expect(snapshot(amrap, r.run, at(30))).toMatchObject({ paused: true, phase: "work", displaySec: 60 });
+  });
+});
+
+group("finish", () => {
+  it("ends AMRAP / EMOM early with DONE and no result time", () => {
+    expect(snapshot(amrap, finish(start(T0), at(30)), at(31))).toMatchObject({ phase: "done", resultSec: null });
+    expect(snapshot(emom, finish(start(T0), at(90)), at(91))).toMatchObject({ phase: "done", resultSec: null });
+  });
+  it("works during the countdown", () => {
+    expect(snapshot(forTime, finish(start(T0), at(4)), at(5))).toMatchObject({ phase: "done", resultSec: 0 });
   });
 });

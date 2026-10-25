@@ -3,7 +3,8 @@ import { el } from "../dom.ts";
 import type { SavedWorkout } from "../store.ts";
 import { MODE_LABEL, describe, describeCountdown, formatClock, type Workout } from "../workout.ts";
 import { playCue, resumeAudio, unlockAudio } from "./audio.ts";
-import { dueCues, finish, pause, resume, snapshot, start, type RunState, type Snapshot } from "./engine.ts";
+import { confettiBurst } from "./confetti.ts";
+import { dueCues, finish, pause, resume, skip, snapshot, start, type RunState, type Snapshot } from "./engine.ts";
 import { enterFullscreen, exitFullscreen, isIOS, isStandalone } from "./platform.ts";
 import { keepAwake, reacquireIfNeeded, releaseAwake, type AwakeStatus } from "./wakelock.ts";
 
@@ -55,16 +56,33 @@ function startRun(root: HTMLElement, s: SavedWorkout): void {
 
   const label = el("p", { className: "run-label" });
   const clock = el("p", { className: "run-clock" });
-  const sub = el("p", { className: "run-sub" });
+  const sub = el("p", { className: "run-sub" }); // "Next up …", PAUSED or DONE
   const notes = el("p", { className: "run-notes", text: w.notes });
 
-  const pauseBtn = el("button", { className: "ctl", text: "Pause" });
-  const doneBtn = el("button", { className: "ctl", text: "Done" });
-  const resetBtn = el("button", { className: "ctl", text: "Reset" });
-  const controls = el("div", { className: "controls", attrs: { hidden: "" } }, pauseBtn, doneBtn, resetBtn);
+  const stat = (name: string) => {
+    const value = el("span", { className: "stat-value" });
+    const box = el("div", { className: "stat" }, el("span", { className: "stat-name", text: name }), value);
+    return { box, value };
+  };
+  const statElapsed = stat("Elapsed");
+  const statRound = stat("Round");
+  const statLeft = stat("Time left");
+  statRound.box.hidden = w.mode !== "emom";
+  const stats = el("div", { className: "stats" }, statElapsed.box, statRound.box, statLeft.box);
 
-  const screen = el("main", { className: "run phase-ready" }, label, clock, sub, notes, controls, awakeNote);
+  const ring = createRing();
+
+  const pauseBtn = el("button", { className: "ctl", text: "Pause" });
+  const skipBtn = el("button", { className: "ctl", text: "Skip" });
+  const finishBtn = el("button", { className: "ctl", text: w.mode === "fortime" ? "Done" : "Finish" });
+  const resetBtn = el("button", { className: "ctl", text: "Reset" });
+  const controls = el("div", { className: "controls", attrs: { hidden: "" } }, pauseBtn, skipBtn, finishBtn, resetBtn);
+
+  const middle = el("div", { className: "run-middle" }, label, clock, sub);
+  const screen = el("main", { className: "run phase-ready" }, ring.svg, stats, middle, notes, controls, awakeNote);
   root.replaceChildren(screen);
+  ring.layout();
+  let celebrated = false;
 
   // ----- controls (tap anywhere shows them for 5 s) -----
   function showControls(): void {
@@ -89,7 +107,16 @@ function startRun(root: HTMLElement, s: SavedWorkout): void {
     showControls();
     tick();
   });
-  doneBtn.addEventListener("click", () => {
+  skipBtn.addEventListener("click", () => {
+    const r = skip(w, run, Date.now());
+    if (r) {
+      run = r.run;
+      lastT = Math.max(lastT, r.cursor); // only the boundary's own beep plays, once
+    }
+    showControls();
+    tick();
+  });
+  finishBtn.addEventListener("click", () => {
     run = finish(run, Date.now());
     playCue("end");
     lastT = Number.POSITIVE_INFINITY; // no more beeps
@@ -119,7 +146,8 @@ function startRun(root: HTMLElement, s: SavedWorkout): void {
   }
 
   function render(snap: Snapshot): void {
-    const key = `${snap.phase}|${snap.paused}|${snap.displaySec}|${snap.round}`;
+    ring.set(snap.progress); // smooth; one attribute, only when the value changes
+    const key = `${snap.phase}|${snap.paused}|${snap.displaySec}|${snap.round}|${snap.elapsedSec}`;
     if (key === lastKey) return;
     lastKey = key;
 
@@ -134,14 +162,29 @@ function startRun(root: HTMLElement, s: SavedWorkout): void {
       clock.textContent = clockText;
       fitClock(clock, clockText);
     }
-    sub.textContent = snap.phase === "done" && w.mode === "fortime" ? "DONE" : snap.paused ? "PAUSED" : "";
+    sub.textContent = snap.phase === "done"
+      ? (w.mode === "fortime" ? "DONE" : "Well done")
+      : snap.paused ? "PAUSED" : nextText(snap);
 
+    statElapsed.value.textContent = formatClock(snap.elapsedSec);
+    statRound.value.textContent = snap.rounds ? `${snap.round ?? snap.rounds}/${snap.rounds}` : "";
+    statLeft.value.textContent = formatClock(snap.leftSec);
+
+    const done = snap.phase === "done";
     pauseBtn.textContent = snap.paused ? "Resume" : "Pause";
-    pauseBtn.hidden = snap.phase === "done";
-    doneBtn.hidden = !(w.mode === "fortime" && snap.phase === "work");
+    pauseBtn.hidden = done;
+    finishBtn.hidden = done;
+    skipBtn.hidden = done || !(snap.phase === "ready" || w.mode === "emom");
+    if (done && !celebrated) {
+      celebrated = true;
+      confettiBurst(screen);
+    }
   }
 
-  const onResize = () => { if (clock.textContent) fitClock(clock, clock.textContent); };
+  const onResize = () => {
+    ring.layout();
+    if (clock.textContent) fitClock(clock, clock.textContent);
+  };
   const onVisible = () => {
     if (document.visibilityState !== "visible") return;
     resumeAudio();
@@ -162,6 +205,62 @@ function startRun(root: HTMLElement, s: SavedWorkout): void {
     releaseAwake();
     exitFullscreen();
   }
+}
+
+function nextText(s: Snapshot): string {
+  if (!s.next) return "";
+  if (s.next.kind === "round") return `Next up: Round ${s.next.round}`;
+  if (s.next.kind === "work") return "Next up: Go";
+  return "Next up: Finish";
+}
+
+// ---------- Progress ring: rounded rectangle tracing the screen edge ----------
+// A circle would have to shrink the digits in portrait; the edge ring does not.
+const SVG_NS = "http://www.w3.org/2000/svg";
+function createRing(): { svg: SVGSVGElement; layout: () => void; set: (p: number) => void } {
+  const svg = document.createElementNS(SVG_NS, "svg");
+  svg.setAttribute("class", "ring");
+  svg.setAttribute("aria-hidden", "true");
+  const track = document.createElementNS(SVG_NS, "path");
+  track.setAttribute("class", "ring-track");
+  const bar = document.createElementNS(SVG_NS, "path");
+  bar.setAttribute("class", "ring-bar");
+  svg.append(track, bar);
+  let length = 0;
+  let lastP = -1;
+
+  function layout(): void {
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    const inset = 8;
+    const r = Math.min(28, w / 6, h / 6);
+    const x0 = inset, y0 = inset, x1 = w - inset, y1 = h - inset, cx = w / 2;
+    // Starts at top centre and runs clockwise.
+    const d = [
+      `M ${cx} ${y0}`, `H ${x1 - r}`, `A ${r} ${r} 0 0 1 ${x1} ${y0 + r}`,
+      `V ${y1 - r}`, `A ${r} ${r} 0 0 1 ${x1 - r} ${y1}`,
+      `H ${x0 + r}`, `A ${r} ${r} 0 0 1 ${x0} ${y1 - r}`,
+      `V ${y0 + r}`, `A ${r} ${r} 0 0 1 ${x0 + r} ${y0}`, `Z`,
+    ].join(" ");
+    svg.setAttribute("viewBox", `0 0 ${w} ${h}`);
+    track.setAttribute("d", d);
+    bar.setAttribute("d", d);
+    length = bar.getTotalLength();
+    bar.style.strokeDasharray = `${length} ${length}`;
+    const p = lastP;
+    lastP = -1;
+    set(p < 0 ? 1 : p);
+  }
+
+  function set(p: number): void {
+    const clamped = Math.max(0, Math.min(1, p));
+    if (Math.abs(clamped - lastP) < 0.0005) return;
+    lastP = clamped;
+    // Deplete from the end of the path so the remaining bar starts at top centre.
+    bar.style.strokeDashoffset = String(-length * (1 - clamped));
+  }
+
+  return { svg, layout, set };
 }
 
 function labelFor(w: Workout, s: Snapshot): string {

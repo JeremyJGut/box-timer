@@ -144,3 +144,34 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
   margin: 0; font-size: 0.85rem; font-weight: 700;
 }
 .awake-note:empty { display: none; }
+
+/* ---------- M5.5 polish: ring, stats, next up, confetti ---------- */
+.run { transition: background-color 0.4s ease, color 0.4s ease; }
+.ring { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.ring-track { fill: none; stroke: rgba(0, 0, 0, 0.18); stroke-width: 8; }
+.ring-bar {
+  fill: none; stroke: #fff; stroke-width: 8; stroke-linecap: round;
+  transition: stroke 0.4s ease;
+}
+.phase-ready .ring-bar { stroke: #111; }
+.phase-paused .ring-bar { stroke: rgba(255, 255, 255, 0.6); }
+
+.stats {
+  position: absolute; top: max(18px, env(safe-area-inset-top)); left: 24px; right: 24px;
+  display: flex; justify-content: space-between; gap: 0.5rem; pointer-events: none;
+}
+.stat { display: flex; flex-direction: column; align-items: center; line-height: 1.1; }
+.stat:first-child { align-items: flex-start; }
+.stat:last-child { align-items: flex-end; }
+.stat-name { font-size: clamp(0.65rem, 2.4vmin, 0.85rem); font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; opacity: 0.85; }
+.stat-value { font-size: clamp(1.1rem, 5vmin, 1.8rem); font-weight: 800; font-variant-numeric: tabular-nums; }
+
+.run-middle { display: flex; flex-direction: column; align-items: center; }
+.run-sub { font-size: clamp(1.1rem, 5vmin, 2.4rem); }
+.run-notes { position: absolute; left: 24px; right: 24px; bottom: max(20px, env(safe-area-inset-bottom)); margin: 0 auto; }
+.controls { z-index: 2; }
+.confetti { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1; }
+
+@media (prefers-reduced-motion: reduce) {
+  .run, .ring-bar { transition: none; }
+}

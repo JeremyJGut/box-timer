@@ -24,7 +24,16 @@ export type Snapshot = {
   rounds: number | null;
   /** For Time result (seconds) once done. */
   resultSec: number | null;
+  /** Remaining fraction of the current phase, 1 → 0 (1 when done: full ring). */
+  progress: number;
+  /** Work time since GO, and time left in the whole workout (seconds). */
+  elapsedSec: number;
+  leftSec: number;
+  /** What comes next, for the "Next up" line. */
+  next: Next;
 };
+
+export type Next = { kind: "work" } | { kind: "round"; round: number } | { kind: "finish" } | null;
 
 export type CueKind = "short" | "go" | "end";
 export type Cue = { at: number; kind: CueKind };
@@ -45,7 +54,7 @@ export function resume(run: RunState, now: number): RunState {
   return { ...run, pausedAt: null, pausedTotal: run.pausedTotal + (now - run.pausedAt) };
 }
 
-/** Coach taps Done (For Time). Freezes the clock at this moment. */
+/** Done (For Time) or Finish (any mode): end now. For Time keeps the time. */
 export function finish(run: RunState, now: number): RunState {
   if (run.finishedAt !== null) return run;
   const at = run.pausedAt ?? now;
@@ -64,36 +73,79 @@ export function snapshot(w: Workout, run: RunState, now: number): Snapshot {
   const totalMs = totalSec(w) * 1000;
   const paused = run.pausedAt !== null && run.finishedAt === null;
   const rounds = w.mode === "emom" ? w.rounds : null;
-  const base = { t, paused, rounds, resultSec: null as number | null };
-
-  if (t < countdownMs) {
-    return { ...base, phase: "ready", displaySec: Math.ceil((countdownMs - t) / 1000), round: rounds ? 1 : null };
-  }
-
   const workMs = t - countdownMs;
+  const clampedWork = Math.min(Math.max(0, workMs), totalMs);
+  const base = {
+    t, paused, rounds, resultSec: null as number | null,
+    elapsedSec: Math.floor(clampedWork / 1000),
+    leftSec: Math.ceil((totalMs - clampedWork) / 1000),
+  };
 
-  if (run.finishedAt !== null && workMs < totalMs) {
-    // Done tapped before the cap.
-    const resultSec = Math.floor(workMs / 1000);
-    return { ...base, phase: "done", displaySec: resultSec, round: null, resultSec };
+  // Finished: Done/Finish tapped, or the time ran out.
+  if (run.finishedAt !== null || workMs >= totalMs) {
+    const resultSec = w.mode === "fortime" ? Math.floor(clampedWork / 1000) : null;
+    return {
+      ...base, phase: "done", displaySec: resultSec ?? 0, round: null, resultSec,
+      progress: 1, leftSec: 0, next: null,
+    };
   }
-  if (workMs >= totalMs) {
-    const resultSec = w.mode === "fortime" ? w.capSec : null;
-    return { ...base, phase: "done", displaySec: resultSec ?? 0, round: rounds, resultSec };
+
+  if (workMs < 0) {
+    return {
+      ...base, phase: "ready", displaySec: Math.ceil(-workMs / 1000), round: rounds ? 1 : null,
+      progress: -workMs / countdownMs,
+      next: w.mode === "emom" ? { kind: "round", round: 1 } : { kind: "work" },
+    };
   }
 
   switch (w.mode) {
     case "fortime":
-      return { ...base, phase: "work", displaySec: Math.floor(workMs / 1000), round: null };
+      return {
+        ...base, phase: "work", displaySec: Math.floor(workMs / 1000), round: null,
+        progress: 1 - workMs / totalMs, next: { kind: "finish" },
+      };
     case "amrap":
-      return { ...base, phase: "work", displaySec: Math.ceil((totalMs - workMs) / 1000), round: null };
+      return {
+        ...base, phase: "work", displaySec: Math.ceil((totalMs - workMs) / 1000), round: null,
+        progress: 1 - workMs / totalMs, next: { kind: "finish" },
+      };
     case "emom": {
       const intervalMs = w.intervalSec * 1000;
       const index = Math.floor(workMs / intervalMs);
       const inRound = workMs - index * intervalMs;
-      return { ...base, phase: "work", displaySec: Math.ceil((intervalMs - inRound) / 1000), round: index + 1 };
+      const round = index + 1;
+      return {
+        ...base, phase: "work", displaySec: Math.ceil((intervalMs - inRound) / 1000), round,
+        progress: 1 - inRound / intervalMs,
+        next: round < w.rounds ? { kind: "round", round: round + 1 } : { kind: "finish" },
+      };
     }
   }
+}
+
+/** Next phase boundary on the timeline (end of countdown, next EMOM round), or null. */
+export function nextBoundary(w: Workout, t: number): number | null {
+  const countdownMs = w.countdownSec * 1000;
+  const totalMs = totalSec(w) * 1000;
+  if (t < countdownMs) return countdownMs;
+  const workMs = t - countdownMs;
+  if (workMs >= totalMs || w.mode !== "emom") return null;
+  const intervalMs = w.intervalSec * 1000;
+  return countdownMs + (Math.floor(workMs / intervalMs) + 1) * intervalMs;
+}
+
+/**
+ * Skip: jump the timeline to the next boundary by moving startedAt back.
+ * Returns the new run and the beep cursor to use as the previous frame's t:
+ * just before the boundary, so its GO / new-round / end beep plays exactly once
+ * and the skipped 3-2-1 never plays. Null when there is nothing to skip.
+ */
+export function skip(w: Workout, run: RunState, now: number): { run: RunState; cursor: number } | null {
+  if (run.finishedAt !== null) return null;
+  const t = elapsed(run, now);
+  const target = nextBoundary(w, t);
+  if (target === null) return null;
+  return { run: { ...run, startedAt: run.startedAt - (target - t) }, cursor: target - 1 };
 }
 
 /** Every beep in the workout, in timeline order. */
